@@ -3,26 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Upload Interface</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Google Drive File Uploader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            width: 300px;
+        }
+        .container h1 {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #fff;
+        }
+        #chooseFile {
+            background-color: #007bff;
+        }
+        #deleteFile {
+            background-color: #dc3545;
+        }
+        #uploadFile {
+            background-color: #28a745;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .file-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+        .file-list li {
+            background: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body>
-
     <div class="container">
-        <h1>Upload Your Files to Google Drive</h1>
-        
-        <!-- File selection button -->
-        <input type="file" id="fileInput" multiple>
-        
-        <!-- Display selected file names -->
-        <div id="fileList">
-            <!-- File names will appear here -->
-        </div>
-
-        <!-- Upload button -->
-        <button id="uploadBtn" disabled>Upload Files</button>
+        <h1>Google Drive File Uploader</h1>
+        <button id="chooseFile">Choose File</button>
+        <button id="deleteFile" disabled>Delete File</button>
+        <button id="uploadFile" disabled>Upload</button>
+        <ul class="file-list" id="fileList"></ul>
     </div>
+    <script>
+        const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+        const API_KEY = 'YOUR_GOOGLE_API_KEY';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-    <script src="script.js"></script>
+        let selectedFiles = [];
+
+        document.getElementById('chooseFile').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.onchange = (e) => {
+                selectedFiles = Array.from(e.target.files);
+                renderFileList();
+            };
+            input.click();
+        });
+
+        document.getElementById('deleteFile').addEventListener('click', () => {
+            selectedFiles = [];
+            renderFileList();
+        });
+
+        document.getElementById('uploadFile').addEventListener('click', async () => {
+            gapi.load('client:auth2', async () => {
+                await gapi.client.init({
+                    apiKey: API_KEY,
+                    clientId: CLIENT_ID,
+                    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+                    scope: SCOPES,
+                });
+
+                const authInstance = gapi.auth2.getAuthInstance();
+                if (!authInstance.isSignedIn.get()) {
+                    await authInstance.signIn();
+                }
+
+                for (const file of selectedFiles) {
+                    const metadata = {
+                        name: file.name,
+                        mimeType: file.type,
+                    };
+
+                    const form = new FormData();
+                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                    form.append('file', file);
+
+                    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                        method: 'POST',
+                        headers: new Headers({
+                            'Authorization': `Bearer ${gapi.auth.getToken().access_token}`,
+                        }),
+                        body: form,
+                    });
+                }
+
+                alert('Upload complete!');
+                selectedFiles = [];
+                renderFileList();
+            });
+        });
+
+        function renderFileList() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+
+            selectedFiles.forEach(file => {
+                const li = document.createElement('li');
+                li.textContent = file.name;
+                fileList.appendChild(li);
+            });
+
+            document.getElementById('deleteFile').disabled = selectedFiles.length === 0;
+            document.getElementById('uploadFile').disabled = selectedFiles.length === 0;
+        }
+    </script>
+    <script src="https://apis.google.com/js/api.js"></script>
 </body>
 </html>
